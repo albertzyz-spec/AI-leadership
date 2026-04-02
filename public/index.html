@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Leadership 评估</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+    <div class="container">
+      <header class="hero">
+        <h1>AI Leadership 评估对话窗口</h1>
+        <p>通过 AI 提问 + 选择题 + 开放题，生成双雷达图与发展建议。</p>
+      </header>
+
+      <section id="startPanel" class="panel">
+        <h2>开始评估</h2>
+        <div class="form-row">
+          <label for="userName">姓名</label>
+          <input id="userName" placeholder="例如：张三" />
+        </div>
+        <div class="form-row">
+          <label for="userRole">角色</label>
+          <input id="userRole" placeholder="例如：产品负责人" />
+        </div>
+        <button id="startBtn">开始对话评估</button>
+      </section>
+
+      <section id="chatPanel" class="panel hidden">
+        <div class="chat-head">
+          <h2>评估对话</h2>
+          <span id="progressText">进度：0/0</span>
+        </div>
+        <div id="questionMeta" class="question-meta"></div>
+        <div id="chatWindow" class="chat-window"></div>
+
+        <div id="choiceArea" class="choice-area hidden"></div>
+
+        <div id="textInputArea" class="input-area hidden">
+          <textarea id="answerInput" placeholder="请输入你的回答"></textarea>
+          <button id="sendBtn">提交回答</button>
+        </div>
+      </section>
+
+      <section id="reportPanel" class="panel hidden">
+        <h2>评估报告</h2>
+        <p id="userInfo"></p>
+        <p id="overallScore" class="overall"></p>
+
+        <div class="charts">
+          <div class="chart-card">
+            <h3>角色雷达评分</h3>
+            <canvas id="roleRadarChart"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3>能力雷达评分</h3>
+            <canvas id="capabilityRadarChart"></canvas>
+          </div>
+        </div>
+
+        <h3>维度评分</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>维度</th>
+              <th>分组</th>
+              <th>分数</th>
+              <th>权重</th>
+            </tr>
+          </thead>
+          <tbody id="scoreTableBody"></tbody>
+        </table>
+
+        <details class="dimension-definitions">
+          <summary>查看10维定义与分组</summary>
+          <ul id="dimensionDefinitionList"></ul>
+        </details>
+
+        <h3>AI领导力评价与发展建议</h3>
+        <pre id="narrativeText" class="narrative"></pre>
+      </section>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
