@@ -188,6 +188,10 @@ th {
   font-weight: 600;
 }
 
+#userInfo {
+  white-space: pre-line;
+}
+
 @media (max-width: 900px) {
   .charts {
     grid-template-columns: 1fr;

@@ -258,6 +258,27 @@ function sanitizeQuestionForClient(question) {
   };
 }
 
+function buildWarmOpeningMessage(userName, userRole, introProfile) {
+  const roleText = userRole && userRole !== "未填写" ? `，目前担任${userRole}` : "";
+  const focusText = introProfile?.assessmentGoal
+    ? `我会重点关注你提到的“${introProfile.assessmentGoal}”。`
+    : "我会结合你的回答，给出客观且有温度的反馈。";
+  return `你好${userName}，感谢你愿意花时间参与这次评估${roleText}。在开始前，我会先了解你的实践方式与思考逻辑。${focusText}`;
+}
+
+function formatQuestionForConversation(question, current, total) {
+  const safe = sanitizeQuestionForClient(question);
+  if (!safe) return null;
+  const head =
+    current === 1
+      ? "我们先从一个你熟悉的真实场景开始。"
+      : "谢谢你的分享，接下来想继续请教你一个问题。";
+  return {
+    ...safe,
+    prompt: `${head}\n\n（第${current}/${total}题）${safe.prompt}`
+  };
+}
+
 function estimateTextScore(text) {
   if (!text || !text.trim()) return 2;
   const normalized = text.trim();
@@ -421,18 +442,95 @@ function getDimensionSuggestion(id, score) {
   return level === "卓越" || level === "稳健" ? rule.strong : rule.improve;
 }
 
+function getDimensionActionPlan(id, score) {
+  const improve = score < 3.8;
+  const actions = {
+    R1: {
+      d30: "梳理一个关键流程，画出“AI执行、人类判断、人工兜底”三层职责图并上线试运行。",
+      d60: "建立该流程的质量门槛和异常回滚机制，确保效率提升不以质量下滑为代价。",
+      d90: "将流程模板复制到第二个场景，并形成跨团队的人机协作标准。"
+    },
+    R2: {
+      d30: "明确接下来一个月的方向假设与关键里程碑，并向团队透明说明不确定性边界。",
+      d60: "建立双周方向校准机制，确保目标变化时团队心理预期和资源安排同步更新。",
+      d90: "沉淀“方向决策记录卡”，提升组织在变化中的一致性与稳定性。"
+    },
+    R3: {
+      d30: "补齐预警指标（质量、时效、风险）并定义触发阈值与责任人。",
+      d60: "完成至少两次问题闭环复盘，形成“发现-处置-复发预防”的标准流程。",
+      d90: "搭建跨角色责任协作机制，让关键风险从个人兜底升级为体系兜底。"
+    },
+    R4: {
+      d30: "明确本季度最稀缺的三类资源，并对齐资源分配优先级。",
+      d60: "建立外部专家/算力/预算的快速调配通道，缩短关键项目等待时间。",
+      d90: "形成可复用的资源编排策略库，支持不同业务场景快速调用。"
+    },
+    R5: {
+      d30: "输出团队能力地图，标注“当前能力、缺口能力、替补方案”。",
+      d60: "围绕关键缺口执行“外借+内部培养”双轨计划并跟踪效果。",
+      d90: "将能力更新节奏制度化，做到按业务变化动态刷新。"
+    },
+    C1: {
+      d30: "选择2-3个高价值AI工具，统一提示词与评测标准。",
+      d60: "在团队中推动工具SOP落地，减少个人经验差导致的产出波动。",
+      d90: "建立工具复盘机制，持续优化使用策略和质量控制。"
+    },
+    C2: {
+      d30: "选一个低风险高频场景做深度落地，定义业务价值指标。",
+      d60: "复盘场景ROI并将有效做法复制到第二个业务场景。",
+      d90: "形成“场景识别-试点-扩展”标准路径，提升落地成功率。"
+    },
+    C3: {
+      d30: "针对一项复杂问题，先写清问题框定、关键假设和验证标准。",
+      d60: "用小步实验验证关键假设，避免一次性大投入带来的决策风险。",
+      d90: "沉淀你的复杂问题拆解模板，并带团队共创至少一次。"
+    },
+    C4: {
+      d30: "为自己和团队建立压力预警信号，提前识别失衡状态。",
+      d60: "引入固定节律的复盘与情绪整理，减少高压下的决策偏差。",
+      d90: "形成可复制的“压力管理与恢复机制”，增强团队持续战斗力。"
+    },
+    C5: {
+      d30: "在冲突场景中固定使用“复述诉求-确认共同目标-对齐行动”三步法。",
+      d60: "建立跨角色沟通规则，减少信息误读和情绪化对抗。",
+      d90: "沉淀高质量沟通案例，提升团队协作氛围与心理安全。"
+    }
+  };
+  const plan = actions[id];
+  if (!plan) {
+    return "30天：选一个核心场景完成复盘。\n  60天：建立可追踪改进机制。\n  90天：形成可复制的方法并推广。";
+  }
+  if (improve) {
+    return `30天：${plan.d30}\n  60天：${plan.d60}\n  90天：${plan.d90}`;
+  }
+  return `30天：在现有基础上把经验模板化并共享。\n  60天：扩大应用范围并纳入团队机制。\n  90天：沉淀为组织级最佳实践。`;
+}
+
 function buildDimensionEvidence(answersByDimension, dimensionId) {
   const items = answersByDimension[dimensionId] || [];
   const textAnswers = items
     .filter((x) => x.question.type === "text" && x.answer?.text)
     .map((x) => x.answer.text.trim())
     .filter(Boolean);
-  if (!textAnswers.length) return "当前维度以情景题选择为主，缺少文字案例证据。";
+  if (!textAnswers.length) {
+    const choice = items.find((x) => x.question.type === "choice");
+    if (!choice) return "当前维度证据较少，建议后续补充真实案例。";
+    const selected =
+      choice.question.options.find((opt) => opt.id === choice.answer?.choiceId)?.label ||
+      "已完成情景选择";
+    return `该维度主要基于情景选择：${selected}`;
+  }
   const first = textAnswers[0];
   return first.length > 80 ? `${first.slice(0, 80)}...` : first;
 }
 
-function makeRuleBasedNarrative(profile, overall, dimensionDetails, answers) {
+function makeRuleBasedNarrative(
+  profile,
+  overall,
+  dimensionDetails,
+  answers,
+  introProfile = {}
+) {
   const sorted = Object.entries(profile).sort((a, b) => b[1] - a[1]);
   const strengths = sorted.slice(0, 2).map(([k]) => DIMENSIONS[k].name);
   const gaps = [...sorted].reverse().slice(0, 2).map(([k]) => DIMENSIONS[k].name);
@@ -444,11 +542,19 @@ function makeRuleBasedNarrative(profile, overall, dimensionDetails, answers) {
     answersByDimension[key].push(item);
   });
 
+  const contextLine = [
+    introProfile.currentResponsibilities,
+    introProfile.businessContext
+  ]
+    .filter(Boolean)
+    .join("；");
   const summary = `综合评分 ${overall}/5。整体来看，你在 ${strengths.join(
     "、"
   )} 上形成了清晰优势，说明你具备把战略、机制和执行打通的能力；同时在 ${gaps.join(
     "、"
-  )} 仍有提升空间。你的回答中能看到一定方法意识和复盘倾向，这对AI时代领导力成长非常关键。`;
+  )} 仍有提升空间。你的回答中能看到方法意识与复盘习惯，这为持续成长打下了很好的基础。${
+    contextLine ? `结合你当前背景（${contextLine}），以下建议会更聚焦在可落地动作。` : ""
+  }`;
 
   const dimensionSections = dimensionDetails
     .map((item) => {
@@ -456,7 +562,12 @@ function makeRuleBasedNarrative(profile, overall, dimensionDetails, answers) {
       const groupLabel = item.group === "role" ? "角色" : "能力";
       const evidence = buildDimensionEvidence(answersByDimension, item.id);
       const suggestion = getDimensionSuggestion(item.id, item.score);
-      return `- ${item.id} ${item.name}（${groupLabel}，${item.score}/5，${band}）\n  观察：你在该维度展现出一定实践基础。\n  事实依据：${evidence}\n  建议：${suggestion}`;
+      const actionPlan = getDimensionActionPlan(item.id, item.score);
+      const insight =
+        band === "卓越" || band === "稳健"
+          ? "你已经形成了较稳定的方法雏形，下一步重点是规模化与机制化。"
+          : "当前能力仍偏阶段性，建议通过更系统的实践与复盘，提升稳定性。";
+      return `- ${item.id} ${item.name}（${groupLabel}，${item.score}/5，${band}）\n  观察：${insight}\n  事实依据：${evidence}\n  深层判断：${suggestion}\n  下一步动作：\n  ${actionPlan}`;
     })
     .join("\n");
 
@@ -473,7 +584,7 @@ function makeRuleBasedNarrative(profile, overall, dimensionDetails, answers) {
     "【10维度细致评价】",
     dimensionSections,
     "",
-    "【下一步发展建议】",
+    "【10维行动路线图】",
     `30天：${suggestions[0]}`,
     `60天：${suggestions[1]}`,
     `90天：${suggestions[2]}`
@@ -483,20 +594,27 @@ function makeRuleBasedNarrative(profile, overall, dimensionDetails, answers) {
 }
 
 async function generateNarrativeWithModel(payload) {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY || process.env.DEEPSEEK_API_KEY;
   if (!apiKey) return null;
 
-  const baseUrl = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
-  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const baseUrl = process.env.OPENAI_BASE_URL || "https://api.deepseek.com";
+  const model = process.env.OPENAI_MODEL || "deepseek-chat";
 
   const prompt = `
-你是资深组织发展顾问。请基于评估数据生成“中肯、鼓励、客观、有温度”的中文反馈。
+你是资深组织发展顾问与领导力教练。请基于评估数据生成“中肯、鼓励、客观、有温度”的中文反馈，语言要温和礼貌、专业共情。
 
 输出要求：
-1) 先给一段综合评价（180-260字），语气温暖但不空泛。
-2) 然后按10个维度逐条给出“观察+事实依据+建议”，每条2-3句。
-3) 最后给30/60/90天行动建议，各1条，具体可执行。
-4) 不要泛泛表扬，要有观点、有事实锚点、也有改进方向。
+1) 先给一段综合评价（180-260字），先肯定投入，再指出关键成长方向。
+2) 然后按10个维度逐条给出：
+   - 维度结论（当前水平）
+   - 事实依据（引用回答要点）
+   - 深层判断（行为模式/能力机制）
+   - 下一步动作（该维度30天/60天/90天）
+3) 保持鼓励但不空泛，避免模板化套话。
+4) 结尾补一句温暖、务实的鼓励。
+
+被评估人背景：
+${JSON.stringify(payload.introProfile || {}, null, 2)}
 
 维度分数（10维）：
 ${JSON.stringify(payload.dimensionDetails, null, 2)}
@@ -504,7 +622,7 @@ ${JSON.stringify(payload.dimensionDetails, null, 2)}
 总分：${payload.overall}
 
 回答摘要（用于事实依据）：
-${payload.answerSnapshots}
+${JSON.stringify(payload.answerSnapshots, null, 2)}
 `.trim();
 
   const response = await fetch(`${baseUrl}/chat/completions`, {
@@ -517,7 +635,11 @@ ${payload.answerSnapshots}
       model,
       temperature: 0.5,
       messages: [
-        { role: "system", content: "你是专业、务实的AI领导力教练。" },
+        {
+          role: "system",
+          content:
+            "你是温和、客观且有洞见的AI领导力教练。反馈要有事实依据和可执行建议。"
+        },
         { role: "user", content: prompt }
       ]
     })
@@ -533,12 +655,19 @@ ${payload.answerSnapshots}
 }
 
 app.post("/api/start", (req, res) => {
-  const { userName = "匿名用户", userRole = "未填写" } = req.body || {};
+  const { userName = "匿名用户", userRole = "未填写", introProfile = {} } = req.body || {};
   const sessionId = uid();
   const questionSet = buildSessionQuestionSet();
+  const cleanedIntroProfile = {
+    currentResponsibilities: (introProfile.currentResponsibilities || "").trim(),
+    teamSize: (introProfile.teamSize || "").trim(),
+    businessContext: (introProfile.businessContext || "").trim(),
+    assessmentGoal: (introProfile.assessmentGoal || "").trim()
+  };
   sessions.set(sessionId, {
     userName,
     userRole,
+    introProfile: cleanedIntroProfile,
     currentIndex: 0,
     questionSet,
     answers: [],
@@ -546,7 +675,8 @@ app.post("/api/start", (req, res) => {
   });
   res.json({
     sessionId,
-    question: sanitizeQuestionForClient(questionSet[0]),
+    openingMessage: buildWarmOpeningMessage(userName, userRole, cleanedIntroProfile),
+    question: formatQuestionForConversation(questionSet[0], 1, questionSet.length),
     progress: { current: 1, total: questionSet.length }
   });
 });
@@ -574,14 +704,18 @@ app.post("/api/answer", (req, res) => {
   if (done) {
     return res.json({
       done: true,
-      message: "评估已完成，请生成报告。"
+      message: "非常感谢你的认真作答，评估已完成。接下来我将为你生成详细报告。"
     });
   }
 
   const next = session.questionSet[session.currentIndex];
   return res.json({
     done: false,
-    question: sanitizeQuestionForClient(next),
+    question: formatQuestionForConversation(
+      next,
+      session.currentIndex + 1,
+      session.questionSet.length
+    ),
     progress: { current: session.currentIndex + 1, total: session.questionSet.length }
   });
 });
@@ -621,6 +755,7 @@ app.post("/api/report", async (req, res) => {
       dimensionScores,
       dimensionDetails,
       overall,
+      introProfile: session.introProfile,
       answers: session.answers,
       answerSnapshots
     });
@@ -632,13 +767,15 @@ app.post("/api/report", async (req, res) => {
     dimensionScores,
     overall,
     dimensionDetails,
-    session.answers
+    session.answers,
+    session.introProfile
   );
 
   res.json({
     user: {
       name: session.userName,
-      role: session.userRole
+      role: session.userRole,
+      introProfile: session.introProfile
     },
     scores: {
       overall,

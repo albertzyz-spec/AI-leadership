@@ -38,7 +38,9 @@ function renderQuestion(question) {
   state.currentQuestion = question;
   appendMessage("assistant", question.prompt);
   questionMeta.textContent =
-    question.kind === "scenario" ? "当前题型：情景偏好题" : "当前题型：开放证据题";
+    question.kind === "scenario"
+      ? "当前题型：情景探索题（没有标准答案）"
+      : "当前题型：开放证据题（欢迎结合真实案例）";
 
   choiceArea.innerHTML = "";
   answerInput.value = "";
@@ -76,14 +78,33 @@ async function apiPost(url, body) {
 async function startAssessment() {
   const userName = document.getElementById("userName").value.trim() || "匿名用户";
   const userRole = document.getElementById("userRole").value.trim() || "未填写";
+  const currentResponsibilities = document
+    .getElementById("currentResponsibilities")
+    .value.trim();
+  const teamSize = document.getElementById("teamSize").value.trim();
+  const businessContext = document.getElementById("businessContext").value.trim();
+  const assessmentGoal = document.getElementById("assessmentGoal").value.trim();
 
-  const data = await apiPost("/api/start", { userName, userRole });
+  const data = await apiPost("/api/start", {
+    userName,
+    userRole,
+    introProfile: {
+      currentResponsibilities,
+      teamSize,
+      businessContext,
+      assessmentGoal
+    }
+  });
   state.sessionId = data.sessionId;
 
   startPanel.classList.add("hidden");
   chatPanel.classList.remove("hidden");
 
-  appendMessage("assistant", `你好，${userName}。我们开始AI领导力评估。`);
+  appendMessage(
+    "assistant",
+    data.openingMessage ||
+      `你好，${userName}。感谢你参加评估，我们会以温和、客观的方式一起完成这次AI领导力对话。`
+  );
   updateProgress(data.progress.current, data.progress.total);
   renderQuestion(data.question);
 }
@@ -119,7 +140,7 @@ async function submitAnswer(answer) {
     updateProgress(data.progress.current, data.progress.total);
     renderQuestion(data.question);
   } catch (err) {
-    appendMessage("assistant", `提交失败：${err.message}`);
+    appendMessage("assistant", `抱歉，刚刚提交失败了：${err.message}。请稍后重试。`);
   }
 }
 
@@ -156,7 +177,16 @@ async function loadReport() {
   const report = await apiPost("/api/report", { sessionId: state.sessionId });
 
   reportPanel.classList.remove("hidden");
-  userInfo.textContent = `评估对象：${report.user.name} / ${report.user.role}`;
+  const intro = report.user?.introProfile || {};
+  const introParts = [
+    intro.currentResponsibilities ? `职责：${intro.currentResponsibilities}` : "",
+    intro.teamSize ? `团队规模：${intro.teamSize}` : "",
+    intro.businessContext ? `场景：${intro.businessContext}` : "",
+    intro.assessmentGoal ? `目标：${intro.assessmentGoal}` : ""
+  ].filter(Boolean);
+  userInfo.textContent = `评估对象：${report.user.name} / ${report.user.role}${
+    introParts.length ? `\n${introParts.join("｜")}` : ""
+  }`;
   overallScore.textContent = `综合评分：${report.scores.overall} / 5`;
 
   scoreTableBody.innerHTML = "";
@@ -220,7 +250,7 @@ document.getElementById("startBtn").addEventListener("click", async () => {
   try {
     await startAssessment();
   } catch (err) {
-    alert(`启动失败：${err.message}`);
+    alert(`启动失败：${err.message}。请检查服务是否启动后重试。`);
   }
 });
 
