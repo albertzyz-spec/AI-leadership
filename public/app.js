@@ -197,13 +197,8 @@ async function sendMessage() {
     const data = await apiPost("/api/chat", { sessionId, message: text });
     hideThinking();
 
-    // Show AI reply
     if (data.reply) appendMessage("assistant", data.reply);
-
-    // Show next question (with slight visual separation if there's a reply)
-    if (!data.done && data.nextQuestion) {
-      appendMessage("assistant", data.nextQuestion);
-    }
+    if (!data.done && data.nextQuestion) appendMessage("assistant", data.nextQuestion);
 
     updateProgress(data.progress.turn, data.progress.coveredDimensions);
 
@@ -216,7 +211,13 @@ async function sendMessage() {
     }
   } catch (err) {
     hideThinking();
-    appendMessage("assistant", t("sendError") + err.message);
+    // Show friendly retry message instead of raw error
+    const retryMsg = lang === "zh"
+      ? "网络有点波动，请稍后重试。你的回答还在输入框里，直接再点发送就好。"
+      : "Network hiccup — please try sending again. Your answer is still in the input box.";
+    appendMessage("assistant", retryMsg);
+    // Restore the user's message so they don't have to retype
+    answerInput.value = text;
     setInputDisabled(false);
   }
 }
@@ -230,7 +231,17 @@ async function loadReport() {
   try {
     report = await apiPost("/api/report", { sessionId });
   } catch (err) {
-    appendMessage("assistant", t("sendError") + err.message);
+    const retryMsg = lang === "zh"
+      ? "报告生成超时，可能是网络较慢。请点击下方按钮重试。"
+      : "Report generation timed out. Please click the button below to retry.";
+    appendMessage("assistant", retryMsg);
+    // Add a retry button
+    const btn = document.createElement("button");
+    btn.textContent = lang === "zh" ? "重新生成报告" : "Retry Report";
+    btn.style.cssText = "margin:8px 0;font-size:14px;padding:8px 16px;";
+    btn.addEventListener("click", () => { btn.remove(); loadReport(); });
+    chatWindow.appendChild(btn);
+    chatWindow.scrollTop = chatWindow.scrollHeight;
     return;
   }
 

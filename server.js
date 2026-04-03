@@ -118,37 +118,83 @@ function clampScore(v) {
 
 // ─── DeepSeek API ─────────────────────────────────────────────────────────────
 
-async function callDeepSeekChat(messages) {
+// Extract JSON from model output — handles markdown code blocks and extra text
+function extractJSON(raw) {
+  const s = (raw || "").trim();
+
+  // 1. Direct parse
+  try { return JSON.parse(s); } catch {}
+
+  // 2. Strip markdown code fence: ```json ... ``` or ``` ... ```
+  const fenceMatch = s.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceMatch) {
+    try { return JSON.parse(fenceMatch[1].trim()); } catch {}
+  }
+
+  // 3. Find first { ... } block
+  const braceStart = s.indexOf("{");
+  const braceEnd = s.lastIndexOf("}");
+  if (braceStart !== -1 && braceEnd > braceStart) {
+    try { return JSON.parse(s.slice(braceStart, braceEnd + 1)); } catch {}
+  }
+
+  console.error("[extractJSON] Failed to parse. Raw content:\n", s.slice(0, 500));
+  throw new Error("AI returned invalid JSON — please retry");
+}
+
+// Fetch with timeout using AbortController
+async function fetchWithTimeout(url, options, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function callDeepSeekChat(messages, retries = 2) {
   const apiKey = process.env.DEEPSEEK_API_KEY;
   if (!apiKey) throw new Error("DEEPSEEK_API_KEY not configured");
 
   const model = process.env.DEEPSEEK_CHAT_MODEL || "deepseek-chat";
-  const response = await fetch("https://api.deepseek.com/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: 0.7,
-      response_format: { type: "json_object" }
-    })
-  });
+  let lastError;
 
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`DeepSeek chat error ${response.status}: ${err}`);
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetchWithTimeout(
+        "https://api.deepseek.com/chat/completions",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({
+            model,
+            messages,
+            temperature: 0.7,
+            response_format: { type: "json_object" }
+          })
+        },
+        60000 // 60s timeout
+      );
+
+      if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`DeepSeek chat error ${response.status}: ${err.slice(0, 200)}`);
+      }
+
+      const data = await response.json();
+      const content = data.choices?.[0]?.message?.content || "{}";
+      return extractJSON(content);
+    } catch (err) {
+      lastError = err;
+      if (attempt < retries) {
+        console.warn(`[callDeepSeekChat] attempt ${attempt + 1} failed: ${err.message}. Retrying...`);
+        await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+      }
+    }
   }
 
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content || "{}";
-  try {
-    return JSON.parse(content);
-  } catch {
-    throw new Error("AI returned invalid JSON");
-  }
+  throw lastError;
 }
 
 async function callDeepSeekReasoner(prompt) {
@@ -156,18 +202,19 @@ async function callDeepSeekReasoner(prompt) {
   if (!apiKey) throw new Error("DEEPSEEK_API_KEY not configured");
 
   const model = process.env.DEEPSEEK_REASONER_MODEL || "deepseek-reasoner";
-  const response = await fetch("https://api.deepseek.com/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`
+  const response = await fetchWithTimeout(
+    "https://api.deepseek.com/chat/completions",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 1
+      })
     },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 1
-    })
-  });
+    180000 // 3 min timeout for R1 deep reasoning
+  );
 
   if (!response.ok) {
     const err = await response.text();
