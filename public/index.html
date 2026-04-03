@@ -3,101 +3,88 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI Leadership 评估</title>
+    <title>AI Leadership 自测</title>
     <link rel="stylesheet" href="./styles.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   </head>
   <body>
     <div class="container">
+
+      <!-- Language Toggle -->
+      <button id="langToggle" class="lang-toggle">EN</button>
+
+      <!-- Header -->
       <header class="hero">
-        <h1>AI Leadership 评估对话窗口</h1>
-        <p>通过 AI 提问 + 选择题 + 开放题，生成双雷达图与发展建议。</p>
+        <h1 data-i18n="title">AI Leadership 自测</h1>
       </header>
 
+      <!-- Start Panel -->
       <section id="startPanel" class="panel">
-        <h2>开始评估</h2>
         <div class="form-row">
-          <label for="userName">姓名</label>
-          <input id="userName" placeholder="例如：张三" />
+          <label for="userName" data-i18n="labelName">姓名</label>
+          <input id="userName" data-i18n-placeholder="placeholderName" placeholder="例如：张三" />
         </div>
         <div class="form-row">
-          <label for="userRole">角色</label>
-          <input id="userRole" placeholder="例如：产品负责人" />
+          <label for="userRole" data-i18n="labelRole">当前角色</label>
+          <input id="userRole" data-i18n-placeholder="placeholderRole" placeholder="例如：产品负责人" />
         </div>
-        <div class="form-row">
-          <label for="currentResponsibilities">当前职责（可选）</label>
-          <input id="currentResponsibilities" placeholder="例如：负责增长战略与跨部门协同" />
-        </div>
-        <div class="form-row">
-          <label for="teamSize">团队规模（可选）</label>
-          <input id="teamSize" placeholder="例如：25人（含外部协作）" />
-        </div>
-        <div class="form-row">
-          <label for="businessContext">业务场景（可选）</label>
-          <input id="businessContext" placeholder="例如：ToB SaaS，增长与交付并重" />
-        </div>
-        <div class="form-row">
-          <label for="assessmentGoal">希望重点评估（可选）</label>
-          <input id="assessmentGoal" placeholder="例如：复杂决策与团队稳定性" />
-        </div>
-        <button id="startBtn">开始对话评估</button>
+        <button id="startBtn" data-i18n="startBtn">开始对话评估</button>
       </section>
 
+      <!-- Chat Panel -->
       <section id="chatPanel" class="panel hidden">
         <div class="chat-head">
-          <h2>评估对话</h2>
-          <span id="progressText">进度：0/0</span>
+          <span id="progressText" class="progress-text"></span>
         </div>
-        <div id="questionMeta" class="question-meta"></div>
         <div id="chatWindow" class="chat-window"></div>
 
-        <div id="choiceArea" class="choice-area hidden"></div>
-
-        <div id="textInputArea" class="input-area hidden">
-          <textarea id="answerInput" placeholder="请输入你的回答"></textarea>
-          <button id="sendBtn">提交回答</button>
+        <div id="inputArea" class="input-area">
+          <textarea id="answerInput" data-i18n-placeholder="answerPlaceholder" placeholder="请输入你的回答..."></textarea>
+          <button id="sendBtn" data-i18n="sendBtn">发送</button>
         </div>
       </section>
 
+      <!-- Report Panel -->
       <section id="reportPanel" class="panel hidden">
-        <h2>评估报告</h2>
+        <div class="report-header">
+          <h2 data-i18n="reportTitle">评估报告</h2>
+          <button id="downloadPdfBtn" class="btn-pdf" data-i18n="downloadPdf">下载 PDF</button>
+        </div>
+
         <p id="userInfo"></p>
         <p id="overallScore" class="overall"></p>
 
         <div class="charts">
           <div class="chart-card">
-            <h3>角色雷达评分</h3>
+            <h3 data-i18n="roleRadarTitle">角色维度雷达</h3>
             <canvas id="roleRadarChart"></canvas>
           </div>
           <div class="chart-card">
-            <h3>能力雷达评分</h3>
+            <h3 data-i18n="capRadarTitle">能力维度雷达</h3>
             <canvas id="capabilityRadarChart"></canvas>
           </div>
         </div>
 
-        <h3>维度评分</h3>
+        <h3 data-i18n="scoresTitle">各维度评分</h3>
         <table>
           <thead>
             <tr>
-              <th>维度</th>
-              <th>分组</th>
-              <th>分数</th>
-              <th>权重</th>
+              <th data-i18n="colDimension">维度</th>
+              <th data-i18n="colGroup">类型</th>
+              <th data-i18n="colScore">分数</th>
+              <th data-i18n="colLevel">等级</th>
             </tr>
           </thead>
           <tbody id="scoreTableBody"></tbody>
         </table>
 
-        <details class="dimension-definitions">
-          <summary>查看10维定义与分组</summary>
-          <ul id="dimensionDefinitionList"></ul>
-        </details>
-
-        <h3>AI领导力评价与发展建议</h3>
+        <h3 data-i18n="reportNarrativeTitle">AI领导力评价与发展建议</h3>
         <pre id="narrativeText" class="narrative"></pre>
       </section>
-    </div>
 
+    </div>
     <script src="./app.js"></script>
   </body>
 </html>
