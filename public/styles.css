@@ -288,6 +288,50 @@ th {
   color: #374151;
 }
 
+/* Report loading card */
+.report-loading-card {
+  background: #eef2ff;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 8px 0;
+  max-width: 85%;
+}
+
+.rl-step {
+  font-size: 14px;
+  color: #374151;
+  margin-bottom: 6px;
+  min-height: 20px;
+}
+
+.rl-time {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 10px;
+}
+
+.rl-bar-track {
+  background: #e0e7ff;
+  border-radius: 99px;
+  height: 6px;
+  overflow: hidden;
+}
+
+.rl-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #6366f1, #1d4ed8);
+  border-radius: 99px;
+  transition: width 0.2s ease;
+  animation: rl-shimmer 1.8s infinite;
+  background-size: 200% 100%;
+}
+
+@keyframes rl-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 /* Responsive */
 @media (max-width: 640px) {
   .charts {

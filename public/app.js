@@ -185,10 +185,15 @@ async function startAssessment() {
 // ─── Send Message ─────────────────────────────────────────────────────────────
 
 async function sendMessage() {
-  const text = answerInput.value.trim();
-  if (!text || !sessionId) return;
+  const raw = answerInput.value.trim();
+  if (!raw || !sessionId) return;
 
-  appendMessage("user", text);
+  // For very short replies, append a gentle nudge so DeepSeek gets enough context
+  const text = raw.length < 10
+    ? raw + "（用户回答较简短）"
+    : raw;
+
+  appendMessage("user", raw);  // show original to user
   answerInput.value = "";
   setInputDisabled(true);
   showThinking();
@@ -224,18 +229,69 @@ async function sendMessage() {
 
 // ─── Load Report ──────────────────────────────────────────────────────────────
 
+function showReportLoading() {
+  const stepsZh = [
+    "正在整理你的对话记录…",
+    "DeepSeek R1 深度分析10个维度中…",
+    "正在撰写个性化发展建议…",
+    "报告即将生成，稍等片刻…"
+  ];
+  const stepsEn = [
+    "Organizing your conversation…",
+    "DeepSeek R1 analyzing 10 dimensions…",
+    "Writing personalized development plan…",
+    "Almost ready, just a moment…"
+  ];
+  const steps = lang === "zh" ? stepsZh : stepsEn;
+  const timeHint = lang === "zh" ? "预计需要 20–40 秒" : "Estimated 20–40 seconds";
+
+  const wrapper = document.createElement("div");
+  wrapper.id = "reportLoadingCard";
+  wrapper.className = "report-loading-card";
+  wrapper.innerHTML = `
+    <div class="rl-step" id="rlStep">${steps[0]}</div>
+    <div class="rl-time">${timeHint}</div>
+    <div class="rl-bar-track"><div class="rl-bar" id="rlBar"></div></div>
+  `;
+  chatWindow.appendChild(wrapper);
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+
+  // Animate progress bar: 0→80% over 30s, then hold
+  const bar = wrapper.querySelector("#rlBar");
+  const stepEl = wrapper.querySelector("#rlStep");
+  let pct = 0;
+  const barTimer = setInterval(() => {
+    if (pct < 80) { pct += 0.5; bar.style.width = pct + "%"; }
+  }, 200);
+
+  // Cycle step text every 8s
+  let stepIdx = 0;
+  const stepTimer = setInterval(() => {
+    stepIdx = (stepIdx + 1) % steps.length;
+    stepEl.textContent = steps[stepIdx];
+  }, 8000);
+
+  return () => {
+    clearInterval(barTimer);
+    clearInterval(stepTimer);
+    bar.style.width = "100%";
+    setTimeout(() => wrapper.remove(), 400);
+  };
+}
+
 async function loadReport() {
-  appendMessage("assistant", t("reportLoading"));
+  const stopLoading = showReportLoading();
 
   let report;
   try {
     report = await apiPost("/api/report", { sessionId });
+    stopLoading();
   } catch (err) {
+    stopLoading();
     const retryMsg = lang === "zh"
       ? "报告生成超时，可能是网络较慢。请点击下方按钮重试。"
       : "Report generation timed out. Please click the button below to retry.";
     appendMessage("assistant", retryMsg);
-    // Add a retry button
     const btn = document.createElement("button");
     btn.textContent = lang === "zh" ? "重新生成报告" : "Retry Report";
     btn.style.cssText = "margin:8px 0;font-size:14px;padding:8px 16px;";
