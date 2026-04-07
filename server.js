@@ -590,19 +590,22 @@ function requireAdmin(req, res, next) {
 
 app.get("/admin/api/sessions", requireAdmin, (req, res) => {
   try {
-    const files = fs.readdirSync(DATA_DIR).filter(f => /^\d+-[a-z0-9]+\.json$/.test(f));
+    const files = fs.readdirSync(DATA_DIR).filter(f => f.endsWith(".json"));
     const list = files.map(f => {
       try {
         const data = JSON.parse(fs.readFileSync(path.join(DATA_DIR, f), "utf-8"));
+        // normalize old format (name_timestamp.json) and new format (sessionId.json)
+        const status = data.status || (data.completedAt ? "completed" : "in_progress");
+        const lastActivityAt = data.lastActivityAt || data.completedAt || data.startedAt;
         return {
-          sessionId: data.sessionId,
+          sessionId: data.sessionId || f.replace(".json", ""),
           userName: data.userName,
           userRole: data.userRole,
           language: data.language,
           startedAt: data.startedAt,
-          lastActivityAt: data.lastActivityAt,
+          lastActivityAt,
           completedAt: data.completedAt,
-          status: data.status,
+          status,
           turnCount: data.turnCount,
           overallScore: data.overallScore
         };
