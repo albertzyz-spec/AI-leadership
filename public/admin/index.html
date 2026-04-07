@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>管理后台 — AI领导力测评</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>AI领导力评估 · 管理后台</h1>
+      <div id="stats"></div>
+    </header>
+    <div id="loading">加载中…</div>
+    <div class="card" id="table-wrap" hidden>
+      <table>
+        <thead>
+          <tr>
+            <th>姓名</th>
+            <th>角色</th>
+            <th>开始时间</th>
+            <th>最后活跃</th>
+            <th>状态</th>
+            <th>轮次</th>
+            <th>综合评分</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+  <script>
+    async function loadSessions() {
+      while (true) {
+        try {
+          return await adminFetch("/admin/api/sessions");
+        } catch (e) {
+          if (e.message === "UNAUTHORIZED") {
+            const pw = prompt("请输入管理后台密码：");
+            if (pw === null) {
+              document.getElementById("loading").textContent = "已取消";
+              return null;
+            }
+            setPassword(pw);
+          } else {
+            document.getElementById("loading").textContent = "加载失败：" + e.message;
+            return null;
+          }
+        }
+      }
+    }
+
+    async function init() {
+      const data = await loadSessions();
+      if (!data) return;
+
+      const sessions = data.sessions;
+      const completed = sessions.filter(s => s.status === "completed").length;
+      const inProgress = sessions.filter(s => s.status !== "completed").length;
+
+      document.getElementById("stats").innerHTML =
+        `共 <strong>${sessions.length}</strong> 条 &nbsp;·&nbsp; 已完成 <strong>${completed}</strong> &nbsp;·&nbsp; 进行中 <strong>${inProgress}</strong>`;
+
+      const tbody = document.getElementById("tbody");
+
+      if (sessions.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="muted" style="text-align:center">暂无记录</td></tr>`;
+      } else {
+        sessions.forEach(s => {
+          const tr = document.createElement("tr");
+          const statusHtml = s.status === "completed"
+            ? `<span class="status-completed">✅ 已完成</span>`
+            : `<span class="status-inprogress">⏳ 进行中</span>`;
+          tr.innerHTML = `
+            <td>${s.userName || "—"}</td>
+            <td>${s.userRole || "—"}</td>
+            <td>${formatDateTime(s.startedAt)}</td>
+            <td>${formatDateTime(s.lastActivityAt)}</td>
+            <td>${statusHtml}</td>
+            <td>${s.turnCount}</td>
+            <td>${s.overallScore != null ? s.overallScore + " / 5" : "—"}</td>
+            <td><a href="detail.html?id=${s.sessionId}">查看 →</a></td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+
+      document.getElementById("loading").hidden = true;
+      document.getElementById("table-wrap").hidden = false;
+    }
+
+    init();
+  </script>
+</body>
+</html>

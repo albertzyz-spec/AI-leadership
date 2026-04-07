@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>评估详情 — AI领导力测评</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <a href="index.html">← 返回列表</a>
+      <h1>评估详情</h1>
+    </header>
+    <div id="loading">加载中…</div>
+    <div id="content" hidden>
+
+      <!-- Block 1: Basic Info -->
+      <div class="card">
+        <h2>基本信息</h2>
+        <div id="block-basic"></div>
+      </div>
+
+      <!-- Block 2: Dimension Scores -->
+      <div class="card">
+        <h2>10维度评分</h2>
+        <div id="block-dimensions"></div>
+      </div>
+
+      <!-- Block 3: Conversation -->
+      <div class="card">
+        <h2>完整对话记录</h2>
+        <div id="block-answers"></div>
+      </div>
+
+      <!-- Block 4: Report -->
+      <div class="card">
+        <h2>AI报告全文</h2>
+        <div id="block-report"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+  <script>
+    const sid = new URLSearchParams(location.search).get("id");
+
+    async function loadDetail(id) {
+      while (true) {
+        try {
+          return await adminFetch(`/admin/api/sessions/${id}`);
+        } catch (e) {
+          if (e.message === "UNAUTHORIZED") {
+            const pw = prompt("请输入管理后台密码：");
+            if (pw === null) {
+              document.getElementById("loading").textContent = "已取消";
+              return null;
+            }
+            setPassword(pw);
+          } else {
+            document.getElementById("loading").textContent = "加载失败：" + e.message;
+            return null;
+          }
+        }
+      }
+    }
+
+    function esc(s) {
+      return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+
+    async function init() {
+      if (!sid) {
+        document.getElementById("loading").textContent = "缺少 id 参数";
+        return;
+      }
+
+      const data = await loadDetail(sid);
+      if (!data) return;
+
+      // ── Block 1: Basic Info ──────────────────────────────────────────────────
+      document.getElementById("block-basic").innerHTML = `
+        <table class="info-table">
+          <tr><th>姓名</th><td>${esc(data.userName)}</td></tr>
+          <tr><th>角色</th><td>${esc(data.userRole)}</td></tr>
+          <tr><th>语言</th><td>${data.language === "en" ? "English" : "中文"}</td></tr>
+          <tr><th>开始时间</th><td>${formatDateTime(data.startedAt)}</td></tr>
+          <tr><th>最后活跃</th><td>${formatDateTime(data.lastActivityAt)}</td></tr>
+          <tr><th>完成时间</th><td>${formatDateTime(data.completedAt)}</td></tr>
+          <tr><th>状态</th><td>${data.status === "completed"
+            ? '<span class="status-completed">✅ 已完成</span>'
+            : '<span class="status-inprogress">⏳ 进行中</span>'}</td></tr>
+          <tr><th>对话轮次</th><td>${data.turnCount}</td></tr>
+          <tr><th>综合评分</th><td>${data.overallScore != null
+            ? `<strong>${data.overallScore}</strong> / 5`
+            : "—"}</td></tr>
+        </table>`;
+
+      // ── Block 2: Dimension Scores ────────────────────────────────────────────
+      if (data.dimensionScores) {
+        const rows = Object.entries(DIMENSION_INFO).map(([id, dim]) => {
+          const score = data.dimensionScores[id];
+          const level = score != null ? scoreToLevel(score) : null;
+          return `<tr>
+            <td><strong>${id}</strong></td>
+            <td class="dim-type ${dim.group}">${dim.group === "role" ? "角色" : "能力"}</td>
+            <td>${esc(dim.name)}</td>
+            <td>${score != null ? score : "—"}</td>
+            <td>${level
+              ? `<span class="level-badge level-${level}">${level} ${levelLabel(level)}</span>`
+              : "—"}</td>
+          </tr>`;
+        }).join("");
+        document.getElementById("block-dimensions").innerHTML = `
+          <table class="score-table">
+            <thead><tr><th>ID</th><th>类型</th><th>维度名称</th><th>分数</th><th>等级</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>`;
+      } else {
+        document.getElementById("block-dimensions").innerHTML =
+          '<p class="muted">测评未完成，暂无维度评分。</p>';
+      }
+
+      // ── Block 3: Answers ─────────────────────────────────────────────────────
+      if (data.answers && data.answers.length) {
+        const cards = data.answers.map(a => {
+          const dimInfo = DIMENSION_INFO[a.dimension];
+          const dimName = dimInfo ? dimInfo.name : a.dimension;
+          const level = a.score != null ? scoreToLevel(a.score) : null;
+          return `
+          <div class="answer-card">
+            <div class="answer-meta">
+              轮次 <strong>${a.turn}</strong> &nbsp;·&nbsp;
+              维度 <strong>${a.dimension}</strong> ${esc(dimName)}
+              ${a.score != null
+                ? `&nbsp;·&nbsp; 评分 <strong>${a.score}/5</strong>`
+                  + (level ? ` <span class="level-badge level-${level}">${level} ${levelLabel(level)}</span>` : "")
+                : ""}
+            </div>
+            ${a.question ? `
+            <div class="answer-question">
+              <span class="label">AI 问题</span>
+              <p>${esc(a.question)}</p>
+            </div>` : ""}
+            <div class="answer-user">
+              <span class="label">用户回答</span>
+              <p>${esc(a.answer)}</p>
+            </div>
+            ${a.reasoning ? `
+            <div class="answer-reasoning">
+              <span class="label">评分依据</span>
+              <p>${esc(a.reasoning)}</p>
+            </div>` : ""}
+          </div>`;
+        }).join("");
+        document.getElementById("block-answers").innerHTML = cards;
+      } else {
+        document.getElementById("block-answers").innerHTML =
+          '<p class="muted">暂无对话记录。</p>';
+      }
+
+      // ── Block 4: Report ──────────────────────────────────────────────────────
+      if (data.report) {
+        document.getElementById("block-report").innerHTML =
+          `<pre class="report-pre">${esc(data.report)}</pre>`;
+      } else {
+        document.getElementById("block-report").innerHTML =
+          '<p class="muted">报告尚未生成。</p>';
+      }
+
+      document.getElementById("loading").hidden = true;
+      document.getElementById("content").hidden = false;
+    }
+
+    init();
+  </script>
+</body>
+</html>

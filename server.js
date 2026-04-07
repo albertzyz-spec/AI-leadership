@@ -12,6 +12,14 @@ fs.mkdirSync(DATA_DIR, { recursive: true });
 
 app.use(cors());
 app.use(express.json());
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    const ms = Date.now() - start;
+    console.log(`${req.method} ${req.path} ${res.statusCode} ${ms}ms`);
+  });
+  next();
+});
 app.use(express.static(path.join(__dirname, "public")));
 
 const sessions = new Map();
@@ -357,28 +365,28 @@ ${lines}
 
 // ─── File Storage ─────────────────────────────────────────────────────────────
 
-function saveSessionToFile(session, report, dimensionScores, overall) {
-  const safeName = (session.userName || "anonymous").replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, "_");
-  const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  const filename = `${safeName}_${ts}.json`;
-  const filepath = path.join(DATA_DIR, filename);
-
+function saveOrUpdateSession(session, extra = {}) {
+  const filepath = path.join(DATA_DIR, `${session.sessionId}.json`);
   const record = {
     sessionId: session.sessionId,
     userName: session.userName,
     userRole: session.userRole,
     language: session.language,
     startedAt: new Date(session.startedAt).toISOString(),
-    completedAt: new Date().toISOString(),
+    lastActivityAt: new Date().toISOString(),
+    completedAt: extra.completedAt || null,
+    status: extra.status || "in_progress",
     turnCount: session.turnCount,
     answers: session.answers,
-    dimensionScores,
-    overallScore: overall,
-    report
+    dimensionScores: extra.dimensionScores || null,
+    overallScore: extra.overallScore || null,
+    report: extra.report || null
   };
-
-  fs.writeFileSync(filepath, JSON.stringify(record, null, 2), "utf-8");
-  return filename;
+  try {
+    fs.writeFileSync(filepath, JSON.stringify(record, null, 2), "utf-8");
+  } catch (err) {
+    console.error("[saveOrUpdateSession] Failed:", err.message);
+  }
 }
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
@@ -400,6 +408,7 @@ app.post("/api/start", (req, res) => {
     conversationHistory: [],
     dimensionCoverage,
     currentDimension: null,
+    currentQuestion: null,
     turnCount: 0,
     phase: "intro",
     answers: [],
@@ -463,6 +472,7 @@ app.post("/api/chat", async (req, res) => {
     session.answers.push({
       turn: session.turnCount + 1,
       dimension: scoredDimension,
+      question: session.currentQuestion || "",
       answer: message.trim(),
       score: validScore,
       reasoning: reasoning.slice(0, 200)
@@ -478,7 +488,9 @@ app.post("/api/chat", async (req, res) => {
   // Store combined assistant message in history
   const fullAssistant = done ? reply : `${reply}${nextQuestion ? `\n\n${nextQuestion}` : ""}`;
   session.conversationHistory.push({ role: "assistant", content: fullAssistant });
+  session.currentQuestion = done ? null : nextQuestion;
   sessions.set(sessionId, session);
+  saveOrUpdateSession(session);
 
   const coveredCount = Object.values(session.dimensionCoverage).filter(v => v.turns > 0).length;
 
@@ -535,12 +547,14 @@ app.post("/api/report", async (req, res) => {
   };
 
   // Save file
-  let savedFile = null;
-  try {
-    savedFile = saveSessionToFile(session, report, dimensionScores, overall);
-  } catch (err) {
-    console.error("Failed to save file:", err.message);
-  }
+  saveOrUpdateSession(session, {
+    status: "completed",
+    completedAt: new Date().toISOString(),
+    report,
+    dimensionScores,
+    overallScore: overall
+  });
+  const savedFile = `${session.sessionId}.json`;
 
   const dimensionDetails = Object.entries(dimensionScores).map(([id, score]) => ({
     id,
@@ -562,6 +576,54 @@ app.post("/api/report", async (req, res) => {
 
 app.get("/api/health", (req, res) => {
   res.json({ ok: true, dataDir: DATA_DIR });
+});
+
+// ─── Admin ────────────────────────────────────────────────────────────────────
+
+function requireAdmin(req, res, next) {
+  const pw = req.headers["x-admin-password"] || req.query.pw;
+  if (!process.env.ADMIN_PASSWORD || pw === process.env.ADMIN_PASSWORD) {
+    return next();
+  }
+  res.status(401).json({ error: "Unauthorized" });
+}
+
+app.get("/admin/api/sessions", requireAdmin, (req, res) => {
+  try {
+    const files = fs.readdirSync(DATA_DIR).filter(f => /^\d+-[a-z0-9]+\.json$/.test(f));
+    const list = files.map(f => {
+      try {
+        const data = JSON.parse(fs.readFileSync(path.join(DATA_DIR, f), "utf-8"));
+        return {
+          sessionId: data.sessionId,
+          userName: data.userName,
+          userRole: data.userRole,
+          language: data.language,
+          startedAt: data.startedAt,
+          lastActivityAt: data.lastActivityAt,
+          completedAt: data.completedAt,
+          status: data.status,
+          turnCount: data.turnCount,
+          overallScore: data.overallScore
+        };
+      } catch { return null; }
+    }).filter(Boolean);
+    list.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
+    res.json({ sessions: list });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/admin/api/sessions/:id", requireAdmin, (req, res) => {
+  const id = req.params.id.replace(/[^a-zA-Z0-9-]/g, "");
+  const filepath = path.join(DATA_DIR, `${id}.json`);
+  try {
+    const data = JSON.parse(fs.readFileSync(filepath, "utf-8"));
+    res.json(data);
+  } catch {
+    res.status(404).json({ error: "Session not found" });
+  }
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────

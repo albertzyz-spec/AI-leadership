@@ -1,0 +1,133 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+  background: #f5f7fa;
+  color: #333;
+  min-height: 100vh;
+}
+
+#app { max-width: 1100px; margin: 0 auto; padding: 24px 20px; }
+
+/* Header */
+header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+header h1 { font-size: 1.4rem; color: #1d4ed8; font-weight: 700; }
+header a { color: #6b7280; text-decoration: none; font-size: 0.9rem; }
+header a:hover { color: #1d4ed8; }
+#stats { margin-left: auto; color: #6b7280; font-size: 0.9rem; }
+#stats strong { color: #374151; }
+
+/* Cards */
+.card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+}
+.card h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+}
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #e5e7eb; font-size: 0.875rem; }
+thead th { background: #f8fafc; font-weight: 600; color: #6b7280; white-space: nowrap; }
+tbody tr:hover { background: #f8fafc; cursor: default; }
+tbody tr:last-child td { border-bottom: none; }
+
+a { color: #1d4ed8; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Info table (detail page) */
+.info-table th { width: 120px; color: #6b7280; font-weight: 500; background: none; }
+.info-table td { font-weight: 500; background: none; }
+.info-table tr:hover { background: none; }
+
+/* Dimension type badges */
+.dim-type { font-size: 0.78rem; font-weight: 600; }
+.dim-type.role { color: #7c3aed; }
+.dim-type.capability { color: #0891b2; }
+
+/* Level badges */
+.level-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.level-L5 { background: #d1fae5; color: #065f46; }
+.level-L4 { background: #dbeafe; color: #1e40af; }
+.level-L3 { background: #fef3c7; color: #92400e; }
+.level-L2 { background: #ffe4e6; color: #9f1239; }
+.level-L1 { background: #f3f4f6; color: #374151; }
+
+/* Status badges */
+.status-completed { color: #065f46; }
+.status-inprogress { color: #92400e; }
+
+/* Answer cards */
+.answer-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.answer-card:last-child { margin-bottom: 0; }
+.answer-meta { font-size: 0.82rem; color: #6b7280; margin-bottom: 10px; }
+.answer-meta strong { color: #1d4ed8; }
+
+.label {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  letter-spacing: 0.02em;
+}
+.answer-question .label { background: #dbeafe; color: #1e40af; }
+.answer-user .label     { background: #d1fae5; color: #065f46; }
+.answer-reasoning .label { background: #fef3c7; color: #92400e; }
+
+.answer-question, .answer-user, .answer-reasoning { margin-top: 10px; }
+.answer-question p, .answer-user p, .answer-reasoning p {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  margin-top: 4px;
+  color: #374151;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Report */
+.report-pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.75;
+  color: #374151;
+}
+
+/* Loading / empty states */
+#loading { text-align: center; padding: 60px; color: #9ca3af; font-size: 1rem; }
+.muted { color: #9ca3af; font-style: italic; padding: 4px 0; font-size: 0.875rem; }
+
+@media (max-width: 640px) {
+  #app { padding: 16px 12px; }
+  th, td { padding: 8px; font-size: 0.8rem; }
+  .card { padding: 16px; }
+}
