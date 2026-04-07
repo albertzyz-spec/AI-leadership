@@ -620,13 +620,24 @@ app.get("/admin/api/sessions", requireAdmin, (req, res) => {
 
 app.get("/admin/api/sessions/:id", requireAdmin, (req, res) => {
   const id = req.params.id.replace(/[^a-zA-Z0-9-]/g, "");
-  const filepath = path.join(DATA_DIR, `${id}.json`);
-  try {
-    const data = JSON.parse(fs.readFileSync(filepath, "utf-8"));
-    res.json(data);
-  } catch {
-    res.status(404).json({ error: "Session not found" });
+  // Try direct filename match first (new format)
+  const directPath = path.join(DATA_DIR, `${id}.json`);
+  if (fs.existsSync(directPath)) {
+    try {
+      return res.json(JSON.parse(fs.readFileSync(directPath, "utf-8")));
+    } catch { return res.status(500).json({ error: "Failed to read file" }); }
   }
+  // Fall back: scan all files for matching sessionId (old format)
+  try {
+    const files = fs.readdirSync(DATA_DIR).filter(f => f.endsWith(".json"));
+    for (const f of files) {
+      try {
+        const data = JSON.parse(fs.readFileSync(path.join(DATA_DIR, f), "utf-8"));
+        if (data.sessionId === id) return res.json(data);
+      } catch {}
+    }
+  } catch {}
+  res.status(404).json({ error: "Session not found" });
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────
