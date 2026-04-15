@@ -640,6 +640,50 @@ app.get("/admin/api/sessions/:id", requireAdmin, (req, res) => {
   res.status(404).json({ error: "Session not found" });
 });
 
+app.patch("/admin/api/sessions/:id", requireAdmin, (req, res) => {
+  const id = req.params.id.replace(/[^a-zA-Z0-9-]/g, "");
+  const allowed = ["userName", "userRole"];
+  const updates = Object.fromEntries(Object.entries(req.body || {}).filter(([k]) => allowed.includes(k)));
+  if (!Object.keys(updates).length) return res.status(400).json({ error: "No valid fields to update" });
+
+  const directPath = path.join(DATA_DIR, `${id}.json`);
+  let filePath = directPath;
+  if (!fs.existsSync(directPath)) {
+    try {
+      const files = fs.readdirSync(DATA_DIR).filter(f => f.endsWith(".json"));
+      for (const f of files) {
+        try {
+          const d = JSON.parse(fs.readFileSync(path.join(DATA_DIR, f), "utf-8"));
+          if (d.sessionId === id) { filePath = path.join(DATA_DIR, f); break; }
+        } catch {}
+      }
+    } catch {}
+  }
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: "Session not found" });
+  try {
+    const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    Object.assign(data, updates);
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+    res.json({ ok: true, updated: updates });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/admin/api/sessions/restore", requireAdmin, (req, res) => {
+  const data = req.body;
+  if (!data || !data.sessionId) return res.status(400).json({ error: "Invalid session data" });
+  const id = data.sessionId.replace(/[^a-zA-Z0-9-]/g, "");
+  const filePath = path.join(DATA_DIR, `${id}.json`);
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+    res.json({ ok: true, sessionId: id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 function startServer(preferredPort, maxRetries = 10) {
